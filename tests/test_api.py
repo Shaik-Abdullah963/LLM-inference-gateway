@@ -1,32 +1,39 @@
 """Tests for API endpoints."""
 
+import sys
 import pytest
+from unittest.mock import Mock, patch, MagicMock
+
+# Mock torch and transformers BEFORE any imports
+sys.modules['torch'] = MagicMock()
+sys.modules['transformers'] = MagicMock()
+
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock
-
-from llm_gateway.api import create_app
-from llm_gateway.api.schemas import GenerateRequest
-
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    app = create_app()
-    # Override lifespan to avoid loading the actual model
-    app.router.lifespan_context = AsyncMock()
-    return TestClient(app)
 
 
 @pytest.fixture
 def mock_engine():
-    """Mock the inference engine."""
-    with patch("llm_gateway.api.routes.engine") as mock:
-        mock._is_loaded = True
-        mock.generate.return_value = "Generated text output"
-        yield mock
+    """Create a mock engine."""
+    mock = MagicMock()
+    mock._is_loaded = True
+    mock.generate = Mock(return_value="Generated text output")
+    return mock
 
 
-def test_health_endpoint(client, mock_engine):
+@pytest.fixture
+def client(mock_engine):
+    """Create a test client with mocked engine."""
+    # Patch the engine before importing
+    with patch('llm_gateway.models.engine', mock_engine):
+        with patch('llm_gateway.api.routes.engine', mock_engine):
+            from llm_gateway.api import create_app
+            app = create_app()
+            # Skip the lifespan events
+            with TestClient(app) as test_client:
+                yield test_client
+
+
+def test_health_endpoint(client):
     """Test health check endpoint."""
     response = client.get("/v1/health")
     assert response.status_code == 200
@@ -36,7 +43,7 @@ def test_health_endpoint(client, mock_engine):
     assert "model_name" in data
 
 
-def test_generate_endpoint(client, mock_engine):
+def test_generate_endpoint(client):
     """Test text generation endpoint."""
     request_data = {
         "prompt": "Test prompt",
@@ -54,7 +61,7 @@ def test_generate_endpoint(client, mock_engine):
     assert data["prompt"] == "Test prompt"
 
 
-def test_generate_validation(client, mock_engine):
+def test_generate_validation(client):
     """Test request validation."""
     # Missing required field
     response = client.post("/v1/generate", json={})
