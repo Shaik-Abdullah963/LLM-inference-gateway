@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  llm-gateway:
+    build: .
+    ports:
+      - "8000:8000"
+      - "9090:9090"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - MODEL_NAME=gpt2
+      - DEVICE=cpu
+      - MAX_LENGTH=512
+      - TEMPERATURE=0.7
+      - LOG_LEVEL=INFO
+      - METRICS_ENABLED=true
+      - METRICS_PORT=9090
+    volumes:
+      - ./models:/app/models
+    restart: unless-stopped
