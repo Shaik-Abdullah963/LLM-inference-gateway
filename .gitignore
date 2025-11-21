@@ -36,8 +36,8 @@ ENV/
 # Environment
 .env
 
-# Model cache
-models/
+# Model cache (downloaded models only, not source code)
+/models/
 *.bin
 *.safetensors
 
