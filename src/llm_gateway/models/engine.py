@@ -209,25 +209,42 @@ class InferenceEngine:
             }
             
             # Run generation in a separate thread
-            thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+            generation_output = {"num_tokens": 0}
+            exception_holder = {"exception": None}
+            
+            def generate_with_exception_handling():
+                """Wrapper to catch exceptions in generation thread."""
+                try:
+                    self.model.generate(**generation_kwargs)
+                except Exception as e:
+                    exception_holder["exception"] = e
+            
+            thread = Thread(target=generate_with_exception_handling)
             thread.start()
             
             # Stream the output
-            total_tokens = 0
+            generated_text = ""
             for text in streamer:
-                total_tokens += 1
+                generated_text += text
                 yield text
             
             thread.join()
             
+            # Check for exceptions in generation thread
+            if exception_holder["exception"]:
+                raise exception_holder["exception"]
+            
+            # Count actual tokens from generated text
+            num_tokens = len(self.tokenizer.encode(generated_text))
+            
             # Update metrics
-            tokens_generated.inc(total_tokens)
+            tokens_generated.inc(num_tokens)
             generation_duration.observe(time.time() - start_time)
             
             logger.info(
                 "Streamed generation complete",
                 prompt_length=len(prompt),
-                tokens=total_tokens,
+                tokens=num_tokens,
                 duration=time.time() - start_time,
             )
             

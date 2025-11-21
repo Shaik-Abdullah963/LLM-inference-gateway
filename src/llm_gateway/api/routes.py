@@ -44,6 +44,7 @@ async def generate_text(request: GenerateRequest):
     if request.stream:
         # Return streaming response
         async def generate_chunks():
+            success = False
             try:
                 active_requests.inc()
                 async for chunk in engine.generate_stream(
@@ -54,12 +55,15 @@ async def generate_text(request: GenerateRequest):
                     top_k=request.top_k,
                 ):
                     yield chunk
+                success = True
             except Exception as e:
                 logger.error("Streaming generation failed", error=str(e))
                 yield f"\n\nError: {str(e)}"
+                requests_total.labels(status="error").inc()
             finally:
                 active_requests.dec()
-                requests_total.labels(status="success").inc()
+                if success:
+                    requests_total.labels(status="success").inc()
         
         return StreamingResponse(
             generate_chunks(),

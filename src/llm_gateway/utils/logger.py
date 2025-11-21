@@ -2,7 +2,6 @@
 
 import sys
 import structlog
-from llm_gateway.core.config import config
 
 
 def setup_logging():
